@@ -11,183 +11,222 @@ import collections
 import re
 import matplotlib
 
+import scipy.misc as sci
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 import numpy as np
-from astropy import wcs
+import matplotlib.mlab as mlab
+
 from astropy.io import fits
-
-from astropy.io.fits import getval
-from astropy.io.fits import getdata
 from datetime import datetime
-from matplotlib.pyplot import savefig
 from mailcap import show
+from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D
 
-
-
-
-#=================================================================================================================
-# Source: http://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside
-#=================================================================================================================
-
-def atoi(text):
-    return int(text) if text.isdigit() else text
-    
-def natural_keys(text):
-    return [atoi(c) for c in re.split('(\d+)', text) ]
-
-
-
-#===============================================================================
-# Filter coarse by 'bpmap_photon.fits'
-#===============================================================================
-
-filteredList = []
 path = 'files/Erster_hsp_6120421_26454/coarse/'
 pathA = 'files/Zweiter_hsp_2031207_4934/coarse/'
 savePath = "files/generatedImages/"
 
-for fileName in os.listdir(path):
-    if fileName.endswith("bpmap_photon.fits"):
-        filteredList.append(fileName)
 
-flareMapTime = {}
-for currentFile in filteredList:
-    hdulist = fits.open(path + currentFile)
-    print repr(hdulist[1].header)
-    #===========================================================================
-    # cols = hdulist[0].columns
-    # print cols
-    #===========================================================================
-    print "\n"
-    
-    key = getval(path + currentFile, "DATE_OBS")
-    
-    if key in flareMapTime:
-        flareMapTime[key].append(currentFile)
-        flareMapTime[key].sort(key=natural_keys)
-    else:
-        flareMapTime[key] = [currentFile]
-    
+# Main class
 
-odTime = collections.OrderedDict(sorted(flareMapTime.items()))
-
-#===============================================================================
-# for key, value in odTime.iteritems():
-#     print key + ", " + str(value)
-#  
-# print "\n"
-#===============================================================================
+def main():
+    filteredList = filterFITSFile()
+    odTime = sortFilteredListByTime(filteredList)
+    # printMap(odTime)
+    odEnergy = sortOdTimeByEnergy(odTime)
+    # printMap(odEnergy)
+    # createImageTimeDifference(odEnergy, odTime)
+    createImageEnergyDifference(odTime)
 
 
-filteredEnergyMap = {}
-for key, value in odTime.iteritems():
-    for fileName in value:
-        energyL = int(fileName.split("_")[0].split(".")[0])
-        if energyL in filteredEnergyMap:
-            filteredEnergyMap[energyL].append(fileName)
+# Source: http://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside
+# Sort items by string number value
+
+
+def atoi(text):
+    return int(text) if text.isdigit() else text
+
+
+def natural_keys(text):
+    return [atoi(c) for c in re.split('(\d+)', text)]
+
+
+# Code for printing key and values of a map
+
+def printMap(map):
+    for key, value in map.iteritems():
+        print key + ", " + str(value)
+
+
+def getDifferenceFITS(path, value, index):
+    currentFITS = fits.getdata(path + value[index])
+    nextFITS = fits.getdata(path + value[index + 1])
+    differenceFITS = nextFITS - currentFITS
+    return differenceFITS
+
+
+# Filter coarse by 'bpmap_photon.fits'
+
+def filterFITSFile():
+    temporaryList = []
+    for fileName in os.listdir(path):
+        if fileName.endswith("bpmap_photon.fits"):
+            temporaryList.append(fileName)
+
+    return temporaryList
+
+
+# Sorting filteredList by time
+# key = start time 
+# value = filename(s)
+
+
+def sortFilteredListByTime(filteredList):
+    flareMapTime = {}
+    for currentFile in filteredList:
+        key = fits.getval(path + currentFile, "DATE_OBS")
+        if key in flareMapTime:
+            flareMapTime[key].append(currentFile)
+            flareMapTime[key].sort(key=natural_keys)
         else:
-            filteredEnergyMap[energyL] = [fileName]
-    
+            flareMapTime[key] = [currentFile]
 
-odEnergy = collections.OrderedDict(sorted(filteredEnergyMap.items()))
-
-#===============================================================================
-# for key, value in odEnergy.iteritems():
-#     print str(key) + ", " + str(value)
-# 
-# print "\n"
-#===============================================================================
-
-#===============================================================================
-# number = 0
-#  
-# print "Creating images for time differences..."
-# for key, value in odEnergy.items():
-#     print "LowEngery: " + str(key) +", proceeding..."
-#     for index in range(len(value)):
-#         if not os.path.exists(savePath + "timeDifference/" + str(key)):
-#             os.makedirs(savePath + "timeDifference/" + str(key))
-#                  
-#         nextIndex = index + 1
-#         if nextIndex < len(value):
-#             number = number + 1
-#             currentFITS = getdata(path + value[index])
-#             nextFITS = getdata(path + value[nextIndex])
-#             differenceFITS = nextFITS - currentFITS
-#             plt.imshow(differenceFITS)            
-#             plt.savefig(savePath + "timeDifference/" + str(key) +"/" + "foo" + str(number) +".png")
-#               
-#         else:
-#             print "LowEngery: " + str(key) +", finshed.\n"    
-#===============================================================================
+    # Sort map by key
+    odTime = collections.OrderedDict(sorted(flareMapTime.items()))
+    return odTime
 
 
-#===============================================================================
-# print "odTime: \n"
-# for key, value in odTime.items():
-#     print str(key) + ", " + str(value)
-#===============================================================================
+# Add filenames in filteredEnergyMap by energy
+# key = low energy value 
+# value = filename(s)
 
-#===============================================================================
-# print "Creating images for spectrum differences..."
-# spectrumFITS = fits.open(path + "hsi_spectrum.fits")
-# print repr(spectrumFITS[1].header)
-# a = getdata(path + "hsi_spectrum.fits")
-# 
-# hdulist = fits.open(path + "hsi_spectrum.fits")
-# cols = hdulist[1].columns
-# print cols
-#===============================================================================
-        
-        
-        
-#===============================================================================
-#         date = key.replace(":", "-").replace(".", "-")
-#         if not os.path.exists(savePath + "spectrumDifference/" + date):
-#             os.makedirs(savePath + "spectrumDifference/" + date)
-#             
-#         nextIndex = index + 1
-#         if nextIndex < len(value):
-#             number = number + 1
-#             currentFITS = getdata(path + value[index])
-#             nextFITS = getdata(path + value[nextIndex])
-#             differenceFITS = nextFITS - currentFITS
-#             print "Sum: " + str(np.sum(differenceFITS)) 
-#             print "Mean: " + str(np.mean(differenceFITS))            
-#             print "Deviation / Sigma: " + str(np.std(differenceFITS))
-#             plt.hist(differenceFITS)
-#             #===================================================================
-#             # plt.show()
-#             #===================================================================
-#             plt.imshow(differenceFITS)            
-#             plt.savefig(savePath + "spectrumDifference/" + date + "/" + "foo" + str(number) + ".png")
-# 
-#         else:
-#             print "Time: " + str(key) + ", finshed."
-#             print "==================================================================\n"       
-#===============================================================================
-            
-#=====================================================================
-#   dateEndFits = getval(path + value[index], "DATE_END")      
-#   date = dateEndFits.split("T")[0]
-#   time = dateEndFits.split("T")[-1]
-#   dateEnd = datetime.strptime(date + time, '%Y-%m-%d%H:%M:%S.%f')
-# 
-#   dateStartFits = getval(path + value[nextIndex], "DATE_OBS")
-#   dateA = dateStartFits.split("T")[0]
-#   timeA = dateStartFits.split("T")[-1]
-#   dateStart = datetime.strptime(dateA + timeA, '%Y-%m-%d%H:%M:%S.%f')
-#     
-#   print "#=============================================================================================="
-#   print "# FITS-File B: " + value[index] + ", dateEnd: " + str(dateEnd)
-#   print "# FITS-File A: " + value[nextIndex] + ", dateStart: " + str(dateStart)
-#   print "#"
-#   timeDifference = dateStart - dateEnd
-#   print "# timeDifference: " + str(timeDifference)
-#   print "#=============================================================================================="
-#   print "\n"
-#=====================================================================
+def sortOdTimeByEnergy(odTime):
+    filteredEnergyMap = {}
+    for key, value in odTime.iteritems():
+        for fileName in value:
+            energyL = int(fileName.split("_")[0].split(".")[0])
+            if energyL in filteredEnergyMap:
+                filteredEnergyMap[energyL].append(fileName)
+            else:
+                filteredEnergyMap[energyL] = [fileName]
 
-print "Process succeeded"            
-            
+    # Sort map by key
+    odEnergy = collections.OrderedDict(sorted(filteredEnergyMap.items()))
+    return odEnergy
+
+
+# Creating images by time differences of every FITS File
+
+
+def createImageTimeDifference(odEnergy, odTime):
+    print "#=========================================================#"
+    print "# Creating images for time differences..."
+    print "#=========================================================#"
+
+    meanList = []
+    mapPositionList = []
+    for key, value in odEnergy.items():
+        print "=================================================================="
+        print "LowEnergy: " + str(key) + ", proceeding..."
+
+        for index in range(len(value)):
+            if not os.path.exists(savePath + "timeDifference/" + str(key)):
+                os.makedirs(savePath + "timeDifference/" + str(key))
+
+            if (index + 1) < len(value):
+                startTime = fits.getval(path + value[index], "DATE_OBS")
+                mapPosition = odTime.keys().index(startTime)
+                mapPositionList.append(mapPosition)
+
+                differenceFITS = getDifferenceFITS(path, value, index)
+                plt.imshow(differenceFITS)
+                plt.savefig(savePath + "timeDifference/" + str(key) + "/" + str(mapPosition) + ".png")
+                plt.clf()
+
+                # scaledFits = sci.bytescale(differenceFITS)
+                muFits = np.mean(differenceFITS)
+                meanList.append(muFits)
+
+            else:
+                # Create mu-Position Chart of every Energy
+                plt.plot(mapPositionList, meanList, label="Energy: " + str(key))
+                plt.xlabel('Zeit')
+                plt.ylabel(r'$\mu$')
+                plt.title(r'$\mu$-Position Chart')
+                plt.legend()
+                plt.savefig(savePath + "timeDifference/" + str(key) + "/muPosition_Chart.png")
+                plt.clf()
+                mapPositionList = []
+                meanList = []
+
+                print "LowEnergy: " + str(key) + ", finished."
+                print "==================================================================\n"
+
+
+# Creating images by energy differences of every FITS File
+def createImageEnergyDifference(odTime):
+    print "#=========================================================#"
+    print "# Creating images for energy differences..."
+    print "#=========================================================#"
+
+    sigmaList = []
+    timePositionList = []
+    energyPositionList = []
+    for key, value in odTime.iteritems():
+        energyPosition = 0
+        print "=================================================================="
+        print "Time: " + str(key) + ", proceeding..."
+        for index in range(len(value)):
+            date = key.replace(":", "-").replace(".", "-")
+            if not os.path.exists(savePath + "energyDifference/" + date):
+                os.makedirs(savePath + "energyDifference/" + date)
+
+            if (index + 1) < len(value):
+                energyPosition += 1
+                differenceFITS = getDifferenceFITS(path, value, index)
+
+                mapPosition = odTime.keys().index(key)
+                sigmaFits = np.std(differenceFITS)
+
+                if not mapPosition in timePositionList:
+                    timePositionList.append(mapPosition)
+                sigmaList.append(sigmaFits)
+                energyPositionList.append(energyPosition)
+
+                plt.imshow(differenceFITS)
+                plt.savefig(savePath + "energyDifference/" + date + "/" + str(energyPosition) + ".png")
+                plt.clf()
+
+            else:
+                #
+                # Abfrage voruebergehend!
+                #
+                if timePositionList and sigmaList and energyPositionList:
+                    fig = plt.figure()
+                    ax = fig.gca(projection='3d')
+                    X = 31
+                    Y = energyPositionList
+                    X, Y = np.meshgrid(X, Y)
+                    R = np.sqrt(X ** 2 + Y ** 2)
+                    Z = sigmaList
+                    Z = sigmaList
+                    surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm)
+
+                    print "sigmaList: " + str(sigmaList)
+                    print "timePositionList: " + str(timePositionList)
+                    print "energyPositionList: " + str(energyPositionList)
+
+                    # plt.show()
+                    plt.savefig(savePath + "energyDifference/" + date + "/3D_Chart.png")
+                    plt.clf()
+
+                sigmaList = []
+                timePositionList = []
+                energyPositionList = []
+
+                print "Time: " + str(key) + ", finished."
+                print "==================================================================\n"
+
+
+if __name__ == '__main__':
+    main()
