@@ -21,26 +21,26 @@ import matplotlib.patches as patches
 from astropy.io import fits
 
 # global variable
-path = 'files/Erster_hsp_6120421_26454/coarse/'
-# path = 'files/Zweiter_hsp_2031207_4934/coarse/'
-savePath = "files/generatedImages/"
-saveIsValid = False
+__path = 'files/Erster_hsp_6120421_26454/coarse/'
+# __path = 'files/Zweiter_hsp_2031207_4934/coarse/'
+__save_path = "files/generatedImages/"
+__save_is_valid = False
 
 
 # Main class
 
 def main():
-    filteredList = filterFITSFile()
-    odTime = sortFilteredListByTime(filteredList)
-    odEnergy = sortOdTimeByEnergy(odTime)
-    mapTimeFITSValues = createTimeFITSValuesMap(odEnergy, odTime)
-    plotTimeDifference(mapTimeFITSValues)
-    plotEnergyDifference(odTime)
+    filtered_list = filter_FITS_file()
+    od_time = sort_filtered_list_by_time(filtered_list)
+    od_energy = sort_od_time_by_energy(od_time)
+    map_time_FITS_values = create_time_FITS_values_map(od_energy, od_time)
+    plot_time_difference(map_time_FITS_values)
+    plot_energy_difference(od_time)
 
 
-def saveFile(savePath, saveString):
-    if (saveIsValid):
-        plt.savefig(savePath + saveString)
+def save_file(save_path, save_string):
+    if (__save_is_valid):
+        plt.savefig(save_path + save_string)
 
 
 # Source: http://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside
@@ -57,25 +57,25 @@ def natural_keys(text):
 
 # Code for printing key and values of a map
 
-def printMap(map):
+def print_map(map):
     for key, value in map.iteritems():
         print str(key) + ", " + str(value)
 
 
-def printList(list):
+def print_list(list):
     for value in list:
         print "Value: " + str(value)
 
 
 # Filter coarse by 'bpmap_photon.fits'
 
-def filterFITSFile():
-    temporaryList = []
-    for fileName in os.listdir(path):
-        if fileName.endswith("bpmap_photon.fits"):
-            temporaryList.append(fileName)
+def filter_FITS_file():
+    temporary_list = []
+    for filename in os.listdir(__path):
+        if filename.endswith("bpmap_photon.fits"):
+            temporary_list.append(filename)
 
-    return temporaryList
+    return temporary_list
 
 
 # Sorting filteredList by time
@@ -83,68 +83,68 @@ def filterFITSFile():
 # value = filename(s)
 
 
-def sortFilteredListByTime(filteredList):
-    flareMapTime = {}
-    for currentFile in filteredList:
-        key = fits.getval(path + currentFile, "DATE_OBS")
-        if key in flareMapTime:
-            flareMapTime[key].append(currentFile)
-            flareMapTime[key].sort(key=natural_keys)
+def sort_filtered_list_by_time(filteredList):
+    flare_map_time = {}
+    for currentfile in filteredList:
+        key = fits.getval(__path + currentfile, "DATE_OBS")
+        if key in flare_map_time:
+            flare_map_time[key].append(currentfile)
+            flare_map_time[key].sort(key=natural_keys)
         else:
-            flareMapTime[key] = [currentFile]
+            flare_map_time[key] = [currentfile]
 
     # Sort map by key
-    return orderDict(flareMapTime)
+    return order_dict(flare_map_time)
 
 
-def orderDict(map):
+def order_dict(map):
     return collections.OrderedDict(sorted(map.items()))
 
 
 # Add filenames in filteredEnergyMap by energy
 
-def sortOdTimeByEnergy(odTime):
-    filteredEnergyMap = {}
-    for startTime, filenameList in odTime.iteritems():
-        for fileName in filenameList:
-            energyL = int(fileName.split("_")[0].split(".")[0])
-            if energyL in filteredEnergyMap:
-                filteredEnergyMap[energyL].append(fileName)
+def sort_od_time_by_energy(odTime):
+    filtered_energy_map = {}
+    for starttime, filename_list in odTime.iteritems():
+        for filename in filename_list:
+            energy_l = int(filename.split("_")[0].split(".")[0])
+            if energy_l in filtered_energy_map:
+                filtered_energy_map[energy_l].append(filename)
             else:
-                filteredEnergyMap[energyL] = [fileName]
+                filtered_energy_map[energy_l] = [filename]
 
     # Sort map by key
-    return orderDict(filteredEnergyMap)
+    return order_dict(filtered_energy_map)
 
 
-def getDifferenceFITS(path, fileNameList, index):
-    currentFITS = fits.getdata(path + fileNameList[index])
-    nextFITS = fits.getdata(path + fileNameList[index + 1])
-    differenceFITS = nextFITS - currentFITS
-    return differenceFITS
+def get_difference_FITS(path, file_name_list, index):
+    current_FITS = fits.getdata(path + file_name_list[index])
+    next_FITS = fits.getdata(path + file_name_list[index + 1])
+    difference_FITS = next_FITS - current_FITS
+    return difference_FITS
 
 
-def plotTimeDifference(mapTimeFITSValues):
+def plot_time_difference(map_time_FITS_values):
     fig = plt.figure()
     ax = fig.add_subplot(111, aspect='equal')
-    for lowEnergy, values in mapTimeFITSValues.iteritems():
-        print "lowEnergy: " + lowEnergy
-        differenceFITSList, mapPositionList, stdFITSList, meanFITSList = values
+    for low_energy, values in map_time_FITS_values.iteritems():
+        print "low_energy: " + str(low_energy)
+        difference_FITS_list, map_position_list, std_FITS_list, mean_FITS_list = values
 
         # print "#=========================================================#"
         # print "# Creating images for time differences..."
         # print "#=========================================================#"
         #
         # print "=================================================================="
-        # print "LowEnergy: " + str(lowEnergy) + ", proceeding..."
+        # print "LowEnergy: " + str(low_energy) + ", proceeding..."
         #
-        # for differenceFITS, mapPosition in zip(differenceFITSList, mapPositionList):
+        # for differenceFITS, map_position in zip(difference_FITS_list, map_position_list):
         #     plt.imshow(differenceFITS)
-        #     saveFile(savePath, "timeDifference/" + str(lowEnergy) + "/" + str(mapPosition) + ".png")
+        #     save_file(__save_path, "timeDifference/" + str(low_energy) + "/" + str(map_position) + ".png")
         #     plt.clf()
         # plt.close()
         #
-        # print "LowEnergy: " + str(lowEnergy) + ", finished."
+        # print "LowEnergy: " + str(low_energy) + ", finished."
         # print "==================================================================\n"
 
 
@@ -157,9 +157,9 @@ def plotTimeDifference(mapTimeFITSValues):
         my_cmap = cm.get_cmap('jet')  # or any other one
 
         # Plot rectangle
-        for stdFITS, mapPosition in zip(stdFITSList, mapPositionList):
-            color_i = my_cmap(norm(stdFITS))  # returns an rgba value
-            rect = patches.Rectangle((mapPosition, lowEnergy), 2, 10, edgecolor=None,
+        for std_FITS, map_position in zip(std_FITS_list, map_position_list):
+            color_i = my_cmap(norm(std_FITS))  # returns an rgba value
+            rect = patches.Rectangle((map_position, low_energy), 2, 10, edgecolor=None,
                                      color=color_i)  # make your rectangle
             ax.add_patch(rect)
 
@@ -173,76 +173,76 @@ def plotTimeDifference(mapTimeFITSValues):
     plt.show()
 
 
-def createEnergyDifferenceImage(differenceFITSList, dateList, energyPositionList):
-    for differenceFITS, date, energyPosition in zip(differenceFITSList, dateList, energyPositionList):
-        plt.imshow(differenceFITS)
-        saveFile(savePath, "energyDifference/" + date + "/" + str(energyPosition) + ".png")
+def create_energy_difference_image(difference_FITS_list, date_list, energy_position_list):
+    for difference_FITS, date, energy_position in zip(difference_FITS_list, date_list, energy_position_list):
+        plt.imshow(difference_FITS)
+        save_file(__save_path, "energyDifference/" + date + "/" + str(energy_position) + ".png")
         plt.clf()
 
 
-def createTimeFITSValuesMap(odEnergy, odTime):
-    mapTimeFITSValues = {}
-    mapPositionList = []
-    differenceFITSList = []
-    stdFITSList = []
-    meanFITSList = []
-    for lowEnergy, fileNameList in odEnergy.items():
+def create_time_FITS_values_map(od_energy, od_time):
+    map_time_FITS_values = {}
+    map_position_list = []
+    difference_FITS_list = []
+    std_FITS_list = []
+    mean_FITS_list = []
+    for low_energy, file_name_list in od_energy.items():
 
-        for index in range(len(fileNameList)):
-            if not os.path.exists(savePath + "timeDifference/" + str(lowEnergy)):
-                os.makedirs(savePath + "timeDifference/" + str(lowEnergy))
+        for index in range(len(file_name_list)):
+            if not os.path.exists(__save_path + "timeDifference/" + str(low_energy)):
+                os.makedirs(__save_path + "timeDifference/" + str(low_energy))
 
-            if (index + 1) < len(fileNameList):
-                startTime = fits.getval(path + fileNameList[index], "DATE_OBS")
-                mapPosition = odTime.keys().index(startTime)
-                mapPositionList.append(mapPosition)
+            if (index + 1) < len(file_name_list):
+                start_time = fits.getval(__path + file_name_list[index], "DATE_OBS")
+                map_position = od_time.keys().index(start_time)
+                map_position_list.append(map_position)
 
-                currentFITS = fits.getdata(path + fileNameList[index])
-                bscaleFITS = sci.bytescale(currentFITS)
-                stdFITSList.append(np.std(bscaleFITS))
-                meanFITSList.append(np.mean(bscaleFITS))
+                current_FITS = fits.getdata(__path + file_name_list[index])
+                bscale_FITS = sci.bytescale(current_FITS)
+                std_FITS_list.append(np.std(bscale_FITS))
+                mean_FITS_list.append(np.mean(bscale_FITS))
 
-                differenceFITS = getDifferenceFITS(path, fileNameList, index)
-                differenceFITSList.append(differenceFITS)
+                difference_FITS = get_difference_FITS(__path, file_name_list, index)
+                difference_FITS_list.append(difference_FITS)
 
-        mapTimeFITSValues[lowEnergy] = [differenceFITSList, mapPositionList, stdFITSList, meanFITSList]
-        mapPositionList = []
-        differenceFITSList = []
+        map_time_FITS_values[low_energy] = [difference_FITS_list, map_position_list, std_FITS_list, mean_FITS_list]
+        map_position_list = []
+        difference_FITS_list = []
 
-    return orderDict(mapTimeFITSValues)
+    return order_dict(map_time_FITS_values)
 
 
-def plotEnergyDifference(odTime):
+def plot_energy_difference(od_time):
     print "#=========================================================#"
     print "# Creating images for energy differences..."
     print "#=========================================================#"
 
-    differenceFITSList = []
-    dateList = []
-    energyPositionList = []
-    for time, fileNameList in odTime.iteritems():
-        energyPosition = 0
+    difference_FITS_list = []
+    date_list = []
+    energy_position_list = []
+    for time, file_name_list in od_time.iteritems():
+        energy_position = 0
         print "=================================================================="
         print "Time: " + str(time) + ", proceeding..."
 
-        for index in range(len(fileNameList)):
+        for index in range(len(file_name_list)):
             date = time.replace(":", "-").replace(".", "-")
-            if not os.path.exists(savePath + "energyDifference/" + date):
-                os.makedirs(savePath + "energyDifference/" + date)
+            if not os.path.exists(__save_path + "energyDifference/" + date):
+                os.makedirs(__save_path + "energyDifference/" + date)
 
-            if (index + 1) < len(fileNameList):
-                energyPosition += 1
-                energyPositionList.append(energyPosition)
+            if (index + 1) < len(file_name_list):
+                energy_position += 1
+                energy_position_list.append(energy_position)
 
-                dateList.append(date)
+                date_list.append(date)
 
-                differenceFITS = getDifferenceFITS(path, fileNameList, index)
-                differenceFITSList.append(differenceFITS)
+                difference_FITS = get_difference_FITS(__path, file_name_list, index)
+                difference_FITS_list.append(difference_FITS)
 
-        createEnergyDifferenceImage(differenceFITSList, dateList, energyPositionList)
-        differenceFITSList = []
-        dateList = []
-        energyPositionList = []
+        create_energy_difference_image(difference_FITS_list, date_list, energy_position_list)
+        difference_FITS_list = []
+        date_list = []
+        energy_position_list = []
         print "Time: " + str(time) + ", finished."
         print "==================================================================\n"
 
