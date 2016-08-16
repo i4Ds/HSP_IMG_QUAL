@@ -1,30 +1,30 @@
 '''
-Created on 26.07.2016
+Created on 11.08.2016
 
 @author: Kushtrim Sylejmani
 '''
 
-import astropy
 import os
-import sys
 import collections
 import re
 import matplotlib
 
+# important: install pillow package, otherwise scipy.misc won't work!
 import scipy.misc as sci
+
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib.mlab as mlab
+from matplotlib.pylab import colorbar
+import matplotlib.cm as cm
+import matplotlib.patches as patches
 
 from astropy.io import fits
-from datetime import datetime
-from mailcap import show
-from matplotlib import cm
-from mpl_toolkits.mplot3d import Axes3D
 
+# global variable
 path = 'files/Erster_hsp_6120421_26454/coarse/'
-pathA = 'files/Zweiter_hsp_2031207_4934/coarse/'
+# path = 'files/Zweiter_hsp_2031207_4934/coarse/'
 savePath = "files/generatedImages/"
+saveIsValid = False
 
 
 # Main class
@@ -32,11 +32,15 @@ savePath = "files/generatedImages/"
 def main():
     filteredList = filterFITSFile()
     odTime = sortFilteredListByTime(filteredList)
-    # printMap(odTime)
     odEnergy = sortOdTimeByEnergy(odTime)
-    # printMap(odEnergy)
-    # createImageTimeDifference(odEnergy, odTime)
-    createImageEnergyDifference(odTime)
+    mapTimeFITSValues = createTimeFITSValuesMap(odEnergy, odTime)
+    plotTimeDifference(mapTimeFITSValues)
+    plotEnergyDifference(odTime)
+
+
+def saveFile(savePath, saveString):
+    if (saveIsValid):
+        plt.savefig(savePath + saveString)
 
 
 # Source: http://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside
@@ -55,14 +59,12 @@ def natural_keys(text):
 
 def printMap(map):
     for key, value in map.iteritems():
-        print key + ", " + str(value)
+        print str(key) + ", " + str(value)
 
 
-def getDifferenceFITS(path, value, index):
-    currentFITS = fits.getdata(path + value[index])
-    nextFITS = fits.getdata(path + value[index + 1])
-    differenceFITS = nextFITS - currentFITS
-    return differenceFITS
+def printList(list):
+    for value in list:
+        print "Value: " + str(value)
 
 
 # Filter coarse by 'bpmap_photon.fits'
@@ -77,7 +79,7 @@ def filterFITSFile():
 
 
 # Sorting filteredList by time
-# key = start time 
+# key = start time
 # value = filename(s)
 
 
@@ -92,18 +94,19 @@ def sortFilteredListByTime(filteredList):
             flareMapTime[key] = [currentFile]
 
     # Sort map by key
-    odTime = collections.OrderedDict(sorted(flareMapTime.items()))
-    return odTime
+    return orderDict(flareMapTime)
+
+
+def orderDict(map):
+    return collections.OrderedDict(sorted(map.items()))
 
 
 # Add filenames in filteredEnergyMap by energy
-# key = low energy value 
-# value = filename(s)
 
 def sortOdTimeByEnergy(odTime):
     filteredEnergyMap = {}
-    for key, value in odTime.iteritems():
-        for fileName in value:
+    for startTime, filenameList in odTime.iteritems():
+        for fileName in filenameList:
             energyL = int(fileName.split("_")[0].split(".")[0])
             if energyL in filteredEnergyMap:
                 filteredEnergyMap[energyL].append(fileName)
@@ -111,121 +114,137 @@ def sortOdTimeByEnergy(odTime):
                 filteredEnergyMap[energyL] = [fileName]
 
     # Sort map by key
-    odEnergy = collections.OrderedDict(sorted(filteredEnergyMap.items()))
-    return odEnergy
+    return orderDict(filteredEnergyMap)
 
 
-# Creating images by time differences of every FITS File
+def getDifferenceFITS(path, fileNameList, index):
+    currentFITS = fits.getdata(path + fileNameList[index])
+    nextFITS = fits.getdata(path + fileNameList[index + 1])
+    differenceFITS = nextFITS - currentFITS
+    return differenceFITS
 
 
-def createImageTimeDifference(odEnergy, odTime):
-    print "#=========================================================#"
-    print "# Creating images for time differences..."
-    print "#=========================================================#"
+def plotTimeDifference(mapTimeFITSValues):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, aspect='equal')
+    for lowEnergy, values in mapTimeFITSValues.iteritems():
+        print "lowEnergy: " + lowEnergy
+        differenceFITSList, mapPositionList, stdFITSList, meanFITSList = values
 
-    meanList = []
+        # print "#=========================================================#"
+        # print "# Creating images for time differences..."
+        # print "#=========================================================#"
+        #
+        # print "=================================================================="
+        # print "LowEnergy: " + str(lowEnergy) + ", proceeding..."
+        #
+        # for differenceFITS, mapPosition in zip(differenceFITSList, mapPositionList):
+        #     plt.imshow(differenceFITS)
+        #     saveFile(savePath, "timeDifference/" + str(lowEnergy) + "/" + str(mapPosition) + ".png")
+        #     plt.clf()
+        # plt.close()
+        #
+        # print "LowEnergy: " + str(lowEnergy) + ", finished."
+        # print "==================================================================\n"
+
+
+
+        # Source: http://stackoverflow.com/questions/15235630/matplotlib-pick-up-one-color-associated-to-one-value-in-a-colorbar?answertab=active#tab-top
+        min_val = 0
+        max_val = 50
+        norm = matplotlib.colors.Normalize(min_val, max_val)  # the color maps work for [0, 1]
+
+        my_cmap = cm.get_cmap('jet')  # or any other one
+
+        # Plot rectangle
+        for stdFITS, mapPosition in zip(stdFITSList, mapPositionList):
+            color_i = my_cmap(norm(stdFITS))  # returns an rgba value
+            rect = patches.Rectangle((mapPosition, lowEnergy), 2, 10, edgecolor=None,
+                                     color=color_i)  # make your rectangle
+            ax.add_patch(rect)
+
+        # set the limits
+        plt.xlim([0, 80])
+        plt.ylim([0, 49])
+
+    cmmapable = cm.ScalarMappable(norm, my_cmap)
+    cmmapable.set_array(range(min_val, max_val))
+    colorbar(cmmapable)
+    plt.show()
+
+
+def createEnergyDifferenceImage(differenceFITSList, dateList, energyPositionList):
+    for differenceFITS, date, energyPosition in zip(differenceFITSList, dateList, energyPositionList):
+        plt.imshow(differenceFITS)
+        saveFile(savePath, "energyDifference/" + date + "/" + str(energyPosition) + ".png")
+        plt.clf()
+
+
+def createTimeFITSValuesMap(odEnergy, odTime):
+    mapTimeFITSValues = {}
     mapPositionList = []
-    for key, value in odEnergy.items():
-        print "=================================================================="
-        print "LowEnergy: " + str(key) + ", proceeding..."
+    differenceFITSList = []
+    stdFITSList = []
+    meanFITSList = []
+    for lowEnergy, fileNameList in odEnergy.items():
 
-        for index in range(len(value)):
-            if not os.path.exists(savePath + "timeDifference/" + str(key)):
-                os.makedirs(savePath + "timeDifference/" + str(key))
+        for index in range(len(fileNameList)):
+            if not os.path.exists(savePath + "timeDifference/" + str(lowEnergy)):
+                os.makedirs(savePath + "timeDifference/" + str(lowEnergy))
 
-            if (index + 1) < len(value):
-                startTime = fits.getval(path + value[index], "DATE_OBS")
+            if (index + 1) < len(fileNameList):
+                startTime = fits.getval(path + fileNameList[index], "DATE_OBS")
                 mapPosition = odTime.keys().index(startTime)
                 mapPositionList.append(mapPosition)
 
-                differenceFITS = getDifferenceFITS(path, value, index)
-                plt.imshow(differenceFITS)
-                plt.savefig(savePath + "timeDifference/" + str(key) + "/" + str(mapPosition) + ".png")
-                plt.clf()
+                currentFITS = fits.getdata(path + fileNameList[index])
+                bscaleFITS = sci.bytescale(currentFITS)
+                stdFITSList.append(np.std(bscaleFITS))
+                meanFITSList.append(np.mean(bscaleFITS))
 
-                # scaledFits = sci.bytescale(differenceFITS)
-                muFits = np.mean(differenceFITS)
-                meanList.append(muFits)
+                differenceFITS = getDifferenceFITS(path, fileNameList, index)
+                differenceFITSList.append(differenceFITS)
 
-            else:
-                # Create mu-Position Chart of every Energy
-                plt.plot(mapPositionList, meanList, label="Energy: " + str(key))
-                plt.xlabel('Zeit')
-                plt.ylabel(r'$\mu$')
-                plt.title(r'$\mu$-Position Chart')
-                plt.legend()
-                plt.savefig(savePath + "timeDifference/" + str(key) + "/muPosition_Chart.png")
-                plt.clf()
-                mapPositionList = []
-                meanList = []
+        mapTimeFITSValues[lowEnergy] = [differenceFITSList, mapPositionList, stdFITSList, meanFITSList]
+        mapPositionList = []
+        differenceFITSList = []
 
-                print "LowEnergy: " + str(key) + ", finished."
-                print "==================================================================\n"
+    return orderDict(mapTimeFITSValues)
 
 
-# Creating images by energy differences of every FITS File
-def createImageEnergyDifference(odTime):
+def plotEnergyDifference(odTime):
     print "#=========================================================#"
     print "# Creating images for energy differences..."
     print "#=========================================================#"
 
-    sigmaList = []
-    timePositionList = []
+    differenceFITSList = []
+    dateList = []
     energyPositionList = []
-    for key, value in odTime.iteritems():
+    for time, fileNameList in odTime.iteritems():
         energyPosition = 0
         print "=================================================================="
-        print "Time: " + str(key) + ", proceeding..."
-        for index in range(len(value)):
-            date = key.replace(":", "-").replace(".", "-")
+        print "Time: " + str(time) + ", proceeding..."
+
+        for index in range(len(fileNameList)):
+            date = time.replace(":", "-").replace(".", "-")
             if not os.path.exists(savePath + "energyDifference/" + date):
                 os.makedirs(savePath + "energyDifference/" + date)
 
-            if (index + 1) < len(value):
+            if (index + 1) < len(fileNameList):
                 energyPosition += 1
-                differenceFITS = getDifferenceFITS(path, value, index)
-
-                mapPosition = odTime.keys().index(key)
-                sigmaFits = np.std(differenceFITS)
-
-                if not mapPosition in timePositionList:
-                    timePositionList.append(mapPosition)
-                sigmaList.append(sigmaFits)
                 energyPositionList.append(energyPosition)
 
-                plt.imshow(differenceFITS)
-                plt.savefig(savePath + "energyDifference/" + date + "/" + str(energyPosition) + ".png")
-                plt.clf()
+                dateList.append(date)
 
-            else:
-                #
-                # Abfrage voruebergehend!
-                #
-                if timePositionList and sigmaList and energyPositionList:
-                    fig = plt.figure()
-                    ax = fig.gca(projection='3d')
-                    X = 31
-                    Y = energyPositionList
-                    X, Y = np.meshgrid(X, Y)
-                    R = np.sqrt(X ** 2 + Y ** 2)
-                    Z = sigmaList
-                    Z = sigmaList
-                    surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm)
+                differenceFITS = getDifferenceFITS(path, fileNameList, index)
+                differenceFITSList.append(differenceFITS)
 
-                    print "sigmaList: " + str(sigmaList)
-                    print "timePositionList: " + str(timePositionList)
-                    print "energyPositionList: " + str(energyPositionList)
-
-                    # plt.show()
-                    plt.savefig(savePath + "energyDifference/" + date + "/3D_Chart.png")
-                    plt.clf()
-
-                sigmaList = []
-                timePositionList = []
-                energyPositionList = []
-
-                print "Time: " + str(key) + ", finished."
-                print "==================================================================\n"
+        createEnergyDifferenceImage(differenceFITSList, dateList, energyPositionList)
+        differenceFITSList = []
+        dateList = []
+        energyPositionList = []
+        print "Time: " + str(time) + ", finished."
+        print "==================================================================\n"
 
 
 if __name__ == '__main__':
