@@ -19,12 +19,14 @@ import matplotlib.cm as cm
 import matplotlib.patches as patches
 
 from astropy.io import fits
+from MouseOverSystem import MouseOverSystem
 
 # global variable
 __path = 'files/Erster_hsp_6120421_26454/coarse/'
 # __path = 'files/Zweiter_hsp_2031207_4934/coarse/'
 __save_path = "files/generatedImages/"
 __save_is_valid = True
+__do_mouse_over_system = False
 
 
 # Main class
@@ -44,16 +46,19 @@ def main():
     __plot_heat_image(diff_map_values, "Diff_Standard_deviation_heatmap", "std_fits_list")
     __plot_heat_image(diff_map_values, "Diff_Mean_heatmap", "mean_fits_list")
 
-    __plot_2D_chart(original_map_values, "Original")
-    __plot_2D_chart(diff_map_values, "Diff")
+    __create_2D_chart(original_map_values, "Original")
+    __create_2D_chart(diff_map_values, "Diff")
 
     if not __save_is_valid:
         print "Speicherfunktion wurde deaktiviert!"
 
 
-def __save_file(save_path, save_string):
+def __save_file(save_path, save_string, fig=None):
     if (__save_is_valid):
-        plt.savefig(save_path + save_string)
+        if fig is None:
+            plt.savefig(save_path + save_string)
+        else:
+            fig.savefig(save_path + save_string)
 
 
 # Source: http://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside
@@ -82,6 +87,12 @@ def __print_list(list):
         print "Value: " + str(value)
     print "\n"
 
+
+# move over system
+
+# def __onpick(event):
+#     ind = event.ind
+#     print 'onpick3 scatter:', ind, np.take(x, ind), np.take(y, ind)
 
 # Filter coarse by 'bpmap_photon.fits'
 
@@ -190,50 +201,78 @@ def __plot_heat_image(map, title, list_name):
     my_cmap, norm = __define_heat_map_values()
 
     for low_energy, values in map.iteritems():
-        high_energy, current_fits_list, map_position_list, std_fits_list, mean_fits_list = values
-
+        high_energy, start_time_list, end_time_list, current_fits_list, map_position_list, std_fits_list, mean_fits_list = values
         # Plot rectangle
         for current_fits, map_position in zip(locals()[list_name], map_position_list):
-            color_i = my_cmap(norm(current_fits))  # returns an rgba value
+            color_i = my_cmap(norm(current_fits))  # returns a rgba value
             rect = patches.Rectangle((map_position, low_energy), 1, high_energy - low_energy, edgecolor=None,
                                      color=color_i)  # make your rectangle
             ax.add_patch(rect)
 
     plt.title(title)
-    __save_file(__save_path, title + ".png")
+
+    __save_file(__save_path, title + ".png", fig=fig)
+
+    # mos = MouseOverSystem(fig, ax)
+    # mos.do_mouse_over_system()
+
     plt.clf()
+    plt.close()
     print "=================================================================="
     print " Plotting heat image, done!"
     print "=================================================================="
 
 
-def __plot_2D_chart(map, map_name):
+def position_of_list():
+    print ""
+
+
+def __create_2D_chart(map, map_name):
     print "=================================================================="
     print " Plotting 2D chart..."
     print "=================================================================="
-    for low_energy, values in map.iteritems():
-        high_energy, current_fits_list, map_position_list, std_fits_list, mean_fits_list = values
 
-        if not os.path.exists(__save_path + "plotCharts/"):
-            os.makedirs(__save_path + "plotCharts/")
+    if not os.path.exists(__save_path + "plot2DCharts/" + map_name):
+        os.makedirs(__save_path + "plot2DCharts/" + map_name)
+
+    for low_energy, values in map.iteritems():
+        high_energy, start_time_list, end_time_list, current_fits_list, map_position_list, std_fits_list, mean_fits_list = values
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        mos = MouseOverSystem(fig, ax)
 
         x = map_position_list
 
         y = std_fits_list
-        title = map_name + "_Standard_deviation_histogram_low_energy_" + str(low_energy)
+        title = map_name + "_Standard_deviation_low_energy_" + str(low_energy)
         plt.title(title)
         plt.xlim([0, 100])
         plt.plot(x, y)
-        __save_file(__save_path, "plotCharts/" + title + ".png")
+        fig = plt.gcf()
+
+        __save_file(__save_path, "plot2DCharts/" + map_name + "/" + title + ".png", fig=fig)
+        if __do_mouse_over_system:
+            mos.do_mouse_over_system(map_position_list, std_fits_list, start_time_list, end_time_list, map_name)
         plt.clf()
+        plt.close()
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        mos = MouseOverSystem(fig, ax)
 
         y = mean_fits_list
-        title = map_name + "_Mean_histogram_low_energy_" + str(low_energy)
+        title = map_name + "_Mean_low_energy_" + str(low_energy)
         plt.title(title)
         plt.xlim([0, 100])
         plt.plot(x, y)
-        __save_file(__save_path, "plotCharts/" + title + ".png")
+        fig = plt.gcf()
+
+        __save_file(__save_path, "plot2DCharts/" + map_name + "/" + title + ".png", fig=fig)
+        if __do_mouse_over_system:
+            mos.do_mouse_over_system(map_position_list, mean_fits_list, start_time_list, end_time_list, map_name)
         plt.clf()
+        plt.close()
 
     print "=================================================================="
     print " Plotting 2D chart, done!"
@@ -264,6 +303,9 @@ def __create_time_fits_value_maps(od_energy, od_time):
     diff_map_values = {}
 
     for low_energy, file_name_list in od_energy.items():
+        start_time_list = []
+        end_time_list = []
+
         original_fits_list = []
         original_map_position_list = []
         original_std_fits_list = []
@@ -275,7 +317,19 @@ def __create_time_fits_value_maps(od_energy, od_time):
         diff_mean_fits_list = []
 
         for index in range(len(file_name_list)):
+            # if low_energy == 5:
+            #     fits_file = fits.open(__path + file_name_list[index])
+            #     print "fits_file[0].header:"
+            #     print repr(fits_file[0].header)
+            #     print "\n"
+            #     print "test"
+
             start_time = fits.getval(__path + file_name_list[index], "DATE_OBS")
+            start_time_list.append(start_time)
+
+            end_time = fits.getval(__path + file_name_list[index], "DATE_END")
+            end_time_list.append(end_time)
+
             map_position = od_time.keys().index(start_time)
             original_map_position_list.append(map_position)
 
@@ -297,11 +351,13 @@ def __create_time_fits_value_maps(od_energy, od_time):
 
             high_energy = fits.getval(__path + file_name_list[index], "ENERGY_H")
 
-        original_map_values[low_energy] = [high_energy, original_fits_list, original_map_position_list,
+        original_map_values[low_energy] = [high_energy, start_time_list, end_time_list, original_fits_list,
+                                           original_map_position_list,
                                            original_std_fits_list,
                                            original_mean_fits_list]
 
-        diff_map_values[low_energy] = [high_energy, diff_fits_list, diff_map_position_list,
+        diff_map_values[low_energy] = [high_energy, start_time_list, end_time_list, diff_fits_list,
+                                       diff_map_position_list,
                                        diff_std_fits_list,
                                        diff_mean_fits_list]
     print "=================================================================="
@@ -316,7 +372,7 @@ def __plot_time_difference(map_time_fits_values):
     print "#================================================================#"
 
     for low_energy, values in map_time_fits_values.iteritems():
-        high_energy, difference_fits_list, map_position_list, std_fits_list, mean_fits_list = values
+        high_energy, start_time_list, end_time_list, difference_fits_list, map_position_list, std_fits_list, mean_fits_list = values
 
         if not os.path.exists(__save_path + "timeDifference/" + str(low_energy)):
             os.makedirs(__save_path + "timeDifference/" + str(low_energy))
