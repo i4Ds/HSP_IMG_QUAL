@@ -16,16 +16,41 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.pylab import colorbar
 import matplotlib.cm as cm
+from matplotlib import colors
+from matplotlib.colors import rgb2hex
 import matplotlib.patches as patches
 
 from astropy.io import fits
 from MouseOverSystem import MouseOverSystem
 
+# bokeh library
+from bokeh.plotting import figure as bokeh_figure
+from bokeh.plotting import gridplot as bokeh_gridplot
+from bokeh.plotting import output_file as bokeh_output_file
+from bokeh.plotting import show as bokeh_show
+from bokeh.models import FixedTicker
+from bokeh.models import (
+    ColumnDataSource,
+    HoverTool,
+    LogColorMapper,
+)
+from bokeh.models.tools import Inspection
+
 # global variable
-__path = 'files/Erster_hsp_6120421_26454/coarse/'
-# __path = 'files/Zweiter_hsp_2031207_4934/coarse/'
-__save_path = "files/generatedImages/"
-__save_is_valid = True
+
+# Erster
+__path = 'files/hsp_6120421_26454/coarse/'
+__save_path = "files/generatedImages/6120421/"
+
+# Zweiter
+# __path = 'files/hsp_2031207_4934/coarse/'
+# __save_path = "files/generatedImages/2031207/"
+
+# Dritter
+# __path = 'files/hsp_6120416_26448/coarse/'
+# __save_path = "files/generatedImages/6120416/"
+
+__save_is_valid = False
 __do_mouse_over_system = False
 
 
@@ -37,17 +62,17 @@ def main():
     od_energy = __sort_od_time_by_energy(od_time)
     original_map_values, diff_map_values = __create_time_fits_value_maps(od_energy, od_time)
 
-    __plot_time_difference(original_map_values)
-    __plot_energy_difference(od_time)
+    # __plot_time_difference(original_map_values)
+    # __plot_energy_difference(od_time)
 
-    __plot_heat_image(original_map_values, "Normal_Standard_deviation_heatmap", "std_fits_list")
-    __plot_heat_image(original_map_values, "Normal_Mean_heatmap", "mean_fits_list")
+    __plot_heat_image(original_map_values, "Original", "Original_Standard_deviation_heatmap", "std_fits_list")
+    # __plot_heat_image(original_map_values, "Original", "Original_Mean_heatmap", "mean_fits_list")
 
-    __plot_heat_image(diff_map_values, "Diff_Standard_deviation_heatmap", "std_fits_list")
-    __plot_heat_image(diff_map_values, "Diff_Mean_heatmap", "mean_fits_list")
+    __plot_heat_image(diff_map_values, "Diff", "Diff_Standard_deviation_heatmap", "std_fits_list")
+    # __plot_heat_image(diff_map_values, "Diff", "Diff_Mean_heatmap", "mean_fits_list")
 
-    __create_2D_chart(original_map_values, "Original")
-    __create_2D_chart(diff_map_values, "Diff")
+    # __create_2D_chart(original_map_values, "Original")
+    # __create_2D_chart(diff_map_values, "Diff")
 
     if not __save_is_valid:
         print "Speicherfunktion wurde deaktiviert!"
@@ -172,10 +197,8 @@ def __get_diff_fits(path, file_name_list, index):
     return diff_fits
 
 
-def __define_heat_map_values():
+def __define_heat_map_values(min_val, max_val):
     # Source: http://stackoverflow.com/questions/15235630/matplotlib-pick-up-one-color-associated-to-one-value-in-a-colorbar?answertab=active#tab-top
-    min_val = 0
-    max_val = 255
     norm = matplotlib.colors.Normalize(min_val, max_val)  # the color maps work for [0, 1]
 
     my_cmap = cm.get_cmap('jet')  # or any other one
@@ -190,31 +213,93 @@ def __define_heat_map_values():
     return my_cmap, norm
 
 
-def __plot_heat_image(map, title, list_name):
+def __plot_heat_image(map, method, title, list_name):
     print "=================================================================="
     print " Plotting heat image..."
     print "=================================================================="
 
+    # matplotlib only used for saving file!
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    my_cmap, norm = __define_heat_map_values()
+    TOOLS = "pan,wheel_zoom,box_zoom,reset,hover,save"
+    bokeh_plot = bokeh_figure(width=1400, height=1000, tools=TOOLS)
 
+    min_val = 0
+    max_val = 255
+
+    my_cmap, norm = __define_heat_map_values(min_val=min_val, max_val=max_val)
+    num_slabs = 255  # number of color steps
+    jet_100 = [colors.rgb2hex(m) for m in my_cmap(np.arange(0, my_cmap.N, my_cmap.N / (num_slabs - 1)))]
     for low_energy, values in map.iteritems():
         high_energy, start_time_list, end_time_list, current_fits_list, map_position_list, std_fits_list, mean_fits_list = values
+
         # Plot rectangle
-        for current_fits, map_position in zip(locals()[list_name], map_position_list):
+        # Source: http://matthiaseisen.com/pp/patterns/p0203/
+        for i, (current_fits, map_position) in enumerate(zip(locals()[list_name], map_position_list)):
             color_i = my_cmap(norm(current_fits))  # returns a rgba value
-            rect = patches.Rectangle((map_position, low_energy), 1, high_energy - low_energy, edgecolor=None,
-                                     color=color_i)  # make your rectangle
+            rect = patches.Rectangle(  # make your rectangle
+                (map_position, low_energy),  # (x,y)
+                1,  # width
+                high_energy - low_energy,  # height
+                edgecolor=None,
+                color=color_i)
+
             ax.add_patch(rect)
+
+            if method == "Original":
+                source = ColumnDataSource(data=dict(
+                    file=[map_position],
+                    start_time=[start_time_list[i]],
+                    end_time=[end_time_list[i]],
+                ))
+            else:
+                source = ColumnDataSource(data=dict(
+                    file=[map_position],
+                    start_time_first=[start_time_list[i]],
+                    end_time_first=[end_time_list[i]],
+                    start_time_second=[start_time_list[i + 1]],
+                    end_time_second=[end_time_list[i + 1]]
+
+                ))
+
+            bokeh_plot.rect(x=map_position + 0.5, y=low_energy + (high_energy - low_energy) / 2, width=1,
+                            height=high_energy - low_energy,
+                            color=rgb2hex(color_i),
+                            source=source)
+            # width_units="screen", height_units="screen")
 
     plt.title(title)
 
-    __save_file(__save_path, title + ".png", fig=fig)
+    hover = bokeh_plot.select_one(HoverTool)
+    hover.point_policy = "follow_mouse"
+    if method == "Original":
+        hover.tooltips = [
+            ("File", "@file"),
+            ("Start time:", "@start_time"),
+            ("End time:", "@end_time")
+        ]
+    else:
+        hover.tooltips = [
+            ("File", "@file"),
+            ("Start time first:", "@start_time_first"),
+            ("End time first:", "@end_time_first"),
+            ("Start time second:", "@start_time_second"),
+            ("End time second:", "@end_time_second")
+        ]
 
-    # mos = MouseOverSystem(fig, ax)
-    # mos.do_mouse_over_system()
+    pcb = bokeh_figure(plot_width=80, plot_height=1000, x_range=[0, 1], y_range=[0, max_val], min_border_right=10)
+    pcb.image(image=[np.linspace(min_val, max_val, 100).reshape(100, 1)], x=[0], y=[0], dw=[1], dh=[max_val - min_val],
+              palette=jet_100)
+    pcb.xaxis.major_label_text_color = None
+    pcb.xaxis.major_tick_line_color = None
+    pcb.xaxis.minor_tick_line_color = None
+    pgrid = bokeh_gridplot([[bokeh_plot, pcb]])  # this places the colorbar next to the image
+
+    bokeh_output_file(__save_path + title + ".html", title=title)
+
+    bokeh_show(pgrid)
+    __save_file(__save_path, title + ".png", fig=fig)
 
     plt.clf()
     plt.close()
